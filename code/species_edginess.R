@@ -230,15 +230,15 @@ plots <- function(box){
 }
 
 
-sp <- c("Quercus douglasii", "Pseudotsuga menziesii", "Pinus albicaulis", "Pinus coulteri")
-
-r <- sp[4] %>% niche() %>% hulls() %>% plots()
-
+#sp <- c("Quercus douglasii", "Pseudotsuga menziesii", "Pinus albicaulis", "Pinus coulteri")
+#r <- sp[4] %>% niche() %>% hulls() %>% plots()
 
 sp <- basename(dirname(spf))
-
+done <- list.files("figures/species") %>% sub("\\.png", "", .)
+sp <- sp[! sp %in% done]
+      
 library(doParallel)
-cl <- makeCluster(detectCores()-1)
+cl <- makeCluster(detectCores()-2)
 registerDoParallel(cl)
 
 r <- foreach(x = sp) %dopar% {
@@ -252,7 +252,7 @@ r <- foreach(x = sp) %dopar% {
       library(grid)
       library(gridExtra)
       
-      x %>% niche() %>% hulls() %>% plots()
+      try(x %>% niche() %>% hulls() %>% plots())
 }
 
 stopCluster(cl)
