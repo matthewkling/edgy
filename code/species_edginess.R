@@ -17,7 +17,7 @@ source("code/ah2sp.R")
 
 # load species range maps
 spf <- list.files("F:/little_trees/raw_data", 
-                recursive=T, full.names=T, pattern="shp")
+                  recursive=T, full.names=T, pattern="shp")
 
 
 # load climate data
@@ -75,11 +75,11 @@ niche <- function(spp){
                 loadings=ld)
       return(x)
 }
- 
 
 
-# alpha hulls
-hulls <- function(box){
+
+# alpha hulls and edginess
+edges <- function(box){
       #box <- r[[2]]
       
       require(FNN)
@@ -136,6 +136,13 @@ hulls <- function(box){
       box$x <- x
       box$sp <- sp
       box$spg <- spg
+      box$cor_pearson <- cor(x$dst, x$dstg, use="pairwise.complete.obs", method="pearson")
+      box$cor_spearman <- cor(x$dst, x$dstg, use="pairwise.complete.obs", method="spearman")
+      
+      write(paste0(box$spp, ", ", box$cor_pearson, ", ", box$cor_spearman), 
+            file="e:/edges/edgy/data/stats.txt", append=T)
+      saveRDS(box, paste0("f:/edges/species_data/", box$spp, ".rds"))
+      
       return(box)
 }
 
@@ -189,7 +196,7 @@ plots <- function(box){
             geom_segment(data=l, aes(x=0, y=0, xend=PC1*lengthen, yend=PC2*lengthen),
                          color="gray80") +
             geom_shadowtext(data=l, aes(x=PC1*lengthen+.15, y=PC2*lengthen+.15, label=input), 
-                      color="black", bg.colour="white", hjust=.5, vjust=1) +
+                            color="black", bg.colour="white", hjust=.5, vjust=1) +
             theme_minimal() +
             coord_fixed()
       
@@ -234,11 +241,12 @@ plots <- function(box){
 #r <- sp[4] %>% niche() %>% hulls() %>% plots()
 
 sp <- basename(dirname(spf))
-done <- list.files("figures/species") %>% sub("\\.png", "", .)
+#done <- list.files("figures/species") %>% sub("\\.png", "", .)
+done <- read.csv("e:/edges/edgy/data/stats.txt", stringsAsFactors=F)$species
 sp <- sp[! sp %in% done]
-      
+
 library(doParallel)
-cl <- makeCluster(detectCores()-2)
+cl <- makeCluster(4)
 registerDoParallel(cl)
 
 r <- foreach(x = sp) %dopar% {
@@ -252,10 +260,27 @@ r <- foreach(x = sp) %dopar% {
       library(grid)
       library(gridExtra)
       
-      try(x %>% niche() %>% hulls() %>% plots())
+      try(x %>% niche() %>% edges())# %>% plots())
 }
 
 stopCluster(cl)
 
 
 
+
+
+## histogram of correlation coefficients ##
+
+r <- read.csv("e:/edges/edgy/data/stats.txt", stringsAsFactors=F) %>%
+      gather(stat, value, -species) %>%
+      mutate(stat=sub("cor_", "", stat))
+      
+p <- ggplot(r, aes(value, color=stat, fill=stat)) + 
+      geom_vline(xintercept=0) +
+      geom_density(alpha=.3) +
+      theme_minimal()+
+      theme(legend.position="bottom") +
+      labs(x=paste0("correlation between climatic and geographic edginess\n(n =",
+                    length(unique(r$species)), " tree species)"))
+
+ggsave("figures/edginess_cor_hist.png", p, width=6, height=4, units="in")
