@@ -99,6 +99,7 @@ d$hex <- colors2d(dplyr::select(d, col, het),
 scatter <- ggplot(d, aes(col, rescale(het))) + 
       geom_point(color=d$hex, size=1) +
       theme_minimal() +
+      theme(text=element_text(size=25)) +
       labs(x="collinearity",
            y="heterogeneity")
 
@@ -106,13 +107,14 @@ map <- ggplot(d, aes(x, y)) +
       geom_raster(fill=d$hex) +
       theme_void()
 
-png("figures/het_col/global_het_col.png", width=1000, height=500)
+png("figures/het_col/global_het_col.png", width=2000, height=1000)
 plot(map)
 print(scatter, 
       vp=viewport(x = 0, y = 0, 
                   width = unit(0.3, "npc"), height = unit(0.6, "npc"),
                   just = c("left", "bottom")))
 dev.off()
+
 
 
 
@@ -191,8 +193,5 @@ scatter <- ggplot(e, aes(temp, ppt)) +
             strip.text=element_blank())
 
 p <- arrangeGrob(map, scatter, ncol=1)
-png("figures/het_col/landscape_het_col.png", width=1000, height=500)
-grid.draw(p)
-dev.off()
-
+ggsave("figures/het_col/landscape_het_col.png", p, width=12, height=6)
 
