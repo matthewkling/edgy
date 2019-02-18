@@ -220,24 +220,22 @@ e <- split(e, e$group)[c(4,2,3,1)] %>%
       #mutate(x=rescale(x), y=rescale(y)) %>%
       #ungroup()
 
-
-maps <- ggplot(e, aes(lsx, lsy)) +
-      geom_raster(fill=e$hex) + 
-      facet_wrap(heterogeneity~collinearity, 
-                 scales="free", as.table=F, nrow=1,
-                 labeller=label_both) +
-      #coord_fixed() +
-      theme_minimal() +
-      theme(legend.position="none",
-            legend.text=element_text(color="white"),
-            strip.text=element_blank()) +
-      labs(x="longitude", y="latitude")
-
 label_letters <- function(x){
       y <- label_both(x, multi_line=F)
       y[[1]] <- letters[1:4]
       return(y)
 }
+
+maps <- ggplot(e, aes(lsx, lsy)) +
+      geom_raster(fill=e$hex) + 
+      facet_wrap(heterogeneity~collinearity, 
+                 scales="free", as.table=F, nrow=1,
+                 labeller=label_letters) +
+      theme_minimal() +
+      theme(legend.position="none",
+            legend.text=element_text(color="white"),
+            strip.text.x=element_text(face="bold")) +
+      labs(x="longitude", y="latitude")
 
 climates <- ggplot(e, aes(temp, ppt)) +
       geom_point(color=e$hex) +
@@ -245,9 +243,8 @@ climates <- ggplot(e, aes(temp, ppt)) +
       facet_wrap(heterogeneity~collinearity, 
                  scales="free", as.table=F, nrow=1,
                  labeller=label_letters) +
-      theme(legend.position="none")+
-            #strip.text.y=element_text(angle=-90),
-            #strip.text=element_blank()) +
+      theme(legend.position="none",
+            strip.text.x=element_text(face="bold")) +
       labs(x="temperature", y="precipitation")
 
 
@@ -286,7 +283,7 @@ dde_txt <- dde %>%
       arrange(geo) %>%
       slice(16) %>%
       ungroup() %>%
-      mutate(txt=letters[1:4])
+      mutate(txt=paste0(letters[1:4], "\n"))
 
 lb <- function(x){
       y <- label_both(x)
@@ -300,17 +297,16 @@ distances <- ggplot() +
       geom_ribbon(data=dd, aes(x=geo, ymin=p25, ymax=p75, fill=group), alpha=.25) +
       geom_line(data=dd, aes(x=geo, y=p50, color=group), size=1) +
       geom_line(data=dde, aes(x=geo, y=clim), size=1, color="black", linetype=3) +
-      geom_text(data=dde_txt, aes(x=geo, y=clim, label=txt), nudge_y=.15) +
+      geom_text(data=dde_txt, aes(x=geo, y=clim, label=txt)) +
       scale_fill_manual(values=pal) +
       scale_color_manual(values=pal) +
       theme_minimal() +
-      facet_wrap(heterogeneity~collinearity, labeller=lb,
+      facet_wrap(heterogeneity~collinearity, labeller=lb, scales="free",
                  as.table=F, nrow=1) +
       theme(legend.position="none",
-            strip.text.y=element_text(angle=-90)) +
+            strip.text.x=element_text(face="bold")) +
       labs(x="pairwise geographic distance (degrees)",
            y="climatic difference")
-
 
 ### global map and scatterplot ##
 
@@ -357,8 +353,8 @@ global_map <- ggplot() +
 ### assemble multipanel figure ###
 
 p <- arrangeGrob(global_map, global_scatter, nrow=1, widths=c(3, 1))
-p <- arrangeGrob(p, distances, climates, maps, ncol=1, heights=c(1.5, 1, 1, 1))
-ggsave("figures/het_col/het_col.png", p, width=8, height=9.5)
+p <- arrangeGrob(p, distances, climates, maps, ncol=1, heights=c(1.5, 1.2, 1.1, 1.1))
+ggsave("figures/het_col/het_col.png", p, width=8, height=10)
 
 
 
