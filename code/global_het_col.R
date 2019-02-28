@@ -67,18 +67,18 @@ collinearity <- function(x, ...){
 heterogeneity <- function(x, ...){
       if(length(x) != 5000) return(NA) # edge of domain
       if(all(is.na(x))) return(NA)
-      
+
       # reconstitute input rasters
       a <- raster(matrix(x[1:2500], nrow=50))
       b <- raster(matrix(x[2501:5000], nrow=50))
-      
+
       # mean difference betwean each cell and its neighbors
       a <- focal(a, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
       b <- focal(b, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
-      
+
       # bivariate euclidean difference
       a <- sqrt(a^2 + b^2)
-      
+
       # mean across landscape
       mean(values(a), ...)
 }
@@ -97,12 +97,12 @@ coverage <- function(x, ...){
 # spline of pairwise climate difference ~ geographic distance within landscape
 distances <- function(x, ...){
       n <- 21 # number of points at which to predict spline
-      mx <- .41 # max pairwise distance for this neighborhood size, within circle 
+      mx <- .41 # max pairwise distance for this neighborhood size, within circle
       if(length(x) != 10000) return(rep(NA, n)) # edge of domain
-      
+
       m <- matrix(x, ncol=4) %>% na.omit()
       if(nrow(m) < 2500) return(rep(NA, n))
-      
+
       gd <- dist(m[,3:4])
       cd <- dist(m[,1:2])
       fit <- data.frame(geo_dist=gd[upper.tri(gd)],
@@ -113,7 +113,7 @@ distances <- function(x, ...){
             group_by(gd) %>%
             sample_n(100) %>%
             gam(clim_dist ~ s(geo_dist, bs="ps"), data=.)
-      
+
       pred <- data.frame(geo_dist=seq(0, mx, length.out=21))
       y <- as.vector(predict(fit, pred))
       if(length(y) != n) return(rep(NA, n))
@@ -162,8 +162,8 @@ pal <- c("gray", "#00d4ff", "#ff3700", "darkorchid")
 ls_data <- function(data, climate){
       ext <- extent(data$x-1, data$x+1, data$y-1, data$y+1)
       pts <- crop(climate, ext) %>%
-            rasterToPoints() %>% 
-            as.data.frame() %>% 
+            rasterToPoints() %>%
+            as.data.frame() %>%
             na.omit()
       coordinates(pts) <- c("x", "y")
       crs(pts) <- crs(climate)
@@ -208,8 +208,8 @@ e <- ls %>%
       arrange(heterogeneity, collinearity)
 
 # bivariate climate color ramps
-# weird ordering needed so manual colors plot on correct facets 
-e <- split(e, e$group)[c(4,2,3,1)] %>% 
+# weird ordering needed so manual colors plot on correct facets
+e <- split(e, e$group)[c(4,2,3,1)] %>%
       lapply(function(x){
             xd <- dplyr::select(x, t, p) %>% as.matrix()
             x$hex <- colorwheel2d(xd, kernel=function(x) x^2)
@@ -227,8 +227,8 @@ label_letters <- function(x){
 }
 
 maps <- ggplot(e, aes(lsx, lsy)) +
-      geom_raster(fill=e$hex) + 
-      facet_wrap(heterogeneity~collinearity, 
+      geom_raster(fill=e$hex) +
+      facet_wrap(heterogeneity~collinearity,
                  scales="free", as.table=F, nrow=1,
                  labeller=label_letters) +
       theme_minimal() +
@@ -240,7 +240,7 @@ maps <- ggplot(e, aes(lsx, lsy)) +
 climates <- ggplot(e, aes(temp, ppt)) +
       geom_point(color=e$hex) +
       theme_minimal() +
-      facet_wrap(heterogeneity~collinearity, 
+      facet_wrap(heterogeneity~collinearity,
                  scales="free", as.table=F, nrow=1,
                  labeller=label_letters) +
       theme(legend.position="none",
@@ -291,7 +291,7 @@ lb <- function(x){
       return(y[1])
 }
 
-distances <- ggplot() + 
+distances <- ggplot() +
       geom_ribbon(data=dd, aes(x=geo, ymin=p01, ymax=p99, fill=group), alpha=.25) +
       geom_ribbon(data=dd, aes(x=geo, ymin=p05, ymax=p95, fill=group), alpha=.25) +
       geom_ribbon(data=dd, aes(x=geo, ymin=p25, ymax=p75, fill=group), alpha=.25) +
@@ -310,7 +310,7 @@ distances <- ggplot() +
 
 ### global map and scatterplot ##
 
-#d$hex <- colors2d(dplyr::select(d, col, het), 
+#d$hex <- colors2d(dplyr::select(d, col, het),
 #                  c("yellow", "red", "black", "green"))
 
 ltrs <- expand.grid(sx=mean(d$col) + c(-1, 1) * diff(range(d$col))/15,
@@ -321,8 +321,8 @@ ltrs <- expand.grid(sx=mean(d$col) + c(-1, 1) * diff(range(d$col))/15,
       left_join(dde %>% select(-geo, -clim) %>% distinct()) %>%
       left_join(d)
 
-global_scatter <- ggplot(d, aes(col, het, 
-                                color=paste(col>mean(col), het>mean(het)))) + 
+global_scatter <- ggplot(d, aes(col, het,
+                                color=paste(col>mean(col), het>mean(het)))) +
       geom_point(size=1) +
       #geom_vline(xintercept=mean(d$col), color="white") +
       #geom_hline(yintercept=mean(d$het), color="white") +
@@ -339,7 +339,7 @@ global_scatter <- ggplot(d, aes(col, het,
            y="heterogeneity")
 
 
-global_map <- ggplot() + 
+global_map <- ggplot() +
       #geom_raster(fill=d$hex) +
       geom_raster(data=d, aes(x, y, fill=paste(col>mean(col), het>mean(het)))) +
       geom_point(data=ltrs, aes(x, y)) +
@@ -363,10 +363,15 @@ ggsave("figures/het_col/het_col.png", p, width=8, height=10)
 #base <- 2000/8
 #png("figures/het_col/het_col.png", width=base*8, height=base*9.5)
 #grid.draw(p)
-#print(global_scatter, 
-#      vp=viewport(x = 0, y = 3/4.5, 
+#print(global_scatter,
+#      vp=viewport(x = 0, y = 3/4.5,
 #                  width = unit(0.3, "npc"), height = unit(0.6/4.5*1.5, "npc"),
 #                  just = c("left", "bottom")))
 #dev.off()
+
+
+
+
+
 
 
