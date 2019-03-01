@@ -186,12 +186,13 @@ rs <- r[r$species %in% species,] %>%
       mutate(letter=letters[1:nrow(.)])
 
 hst <- ggplot() + 
-      geom_vline(xintercept=0, color="gray", size=1) +
+      geom_vline(xintercept=0, color="gray80", size=.75) +
       geom_histogram(data=r, aes(cor_pearson), alpha=.3, bins=20) +
       geom_segment(data=rs, aes(x=cor_pearson, xend=cor_pearson,
                                 y=0, yend=10)) +
       geom_text(data=rs, aes(x=cor_pearson, y=15, label=letter),
                 size=8) +
+      scale_x_continuous(breaks=seq(-1, 1, .2)) +
       theme_minimal() +
       theme(axis.title=element_text(size=20),
             axis.text=element_text(size=20)) +
@@ -228,7 +229,7 @@ legend <- ggplot() +
 
 ################ assemble panels ##################
 
-p <- arrangeGrob(arrangeGrob(s[[1]], s[[1]], nrow=1),
+p <- arrangeGrob(arrangeGrob(s[[1]], s[[2]], nrow=1),
                  textGrob(label=""),
                  arrangeGrob(s[[3]], s[[4]], nrow=1),
                  textGrob(label=""),
