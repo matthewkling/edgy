@@ -6,6 +6,14 @@
 # use geosphere::distm instead of dist
 
 
+#Suggested modifications for landscape figure:
+#1. Make example landscape be more representative (rather than an extreme) so that it falls within the shaded confidence intervals; this would allow the capital letter in the panel 1 scatterplot to not only represent the region specification, but also where the example landscape is within the scatterplot region
+#2.  Change order of panels to map, geographic space, climate space, slopes between geographic distance and climate distance
+#3.  Make y-axis for the geographic-climate space plots all be 1 (should be possible if example landscape falls within CIs)
+#4. Label panels 1-3 to allow reference in main text
+#5. List percentage of global in each combination along with the example landscape in panel 2
+
+
 
 library(tidyverse)
 library(raster)
@@ -27,109 +35,110 @@ select <- dplyr::select
 ##### data setup #####
 
 # load climate data
-clim <- stack(c("F:/chelsa/bio19/CHELSA_bio10_1.tif",
-                "F:/chelsa/bio19/CHELSA_bio10_12.tif"))
-names(clim) <- c("temp", "ppt")
-
-# exclude polar regions, where square landscapes are hardly square
-clim <- crop(clim, extent(-180, 180, -66, 66))
-
-# standardize
-clim$ppt <- log10(clim$ppt)
-clim$temp <- scale(clim$temp)
-clim$ppt <- scale(clim$ppt)
-
-# stash
-writeRaster(clim, "../climate_het_col.tif")
-clim <- stack("../climate_het_col.tif")
-names(clim) <- c("temp", "ppt")
-
-# version with latitude and longitude as layers
-lat <- lon <- clim[[1]]
-ll <- coordinates(lat)
-lon[] <- ll[,1]
-lat[] <- ll[,2]
-rm(ll); gc()
-clim_ll <- stack(clim, lon, lat) %>%
-      writeRaster("../climate_ll.tif")
-
-
-
-##### spatial stats #####
-
-# r-squared of climate variables within landscape
-collinearity <- function(x, ...){
-      m <- matrix(x, ncol=2)
-      cor(m[,1], m[,2], use="pairwise.complete.obs")^2
+if(F){
+      clim <- stack(c("F:/chelsa/bio19/CHELSA_bio10_1.tif",
+                      "F:/chelsa/bio19/CHELSA_bio10_12.tif"))
+      names(clim) <- c("temp", "ppt")
+      
+      # exclude polar regions, where square landscapes are hardly square
+      clim <- crop(clim, extent(-180, 180, -66, 66))
+      
+      # standardize
+      clim$ppt <- log10(clim$ppt)
+      clim$temp <- scale(clim$temp)
+      clim$ppt <- scale(clim$ppt)
+      
+      writeRaster(clim, "../climate_het_col.tif")
+      clim <- stack("../climate_het_col.tif")
+      names(clim) <- c("temp", "ppt")
+      
+      # version with latitude and longitude as layers
+      lat <- lon <- clim[[1]]
+      ll <- coordinates(lat)
+      lon[] <- ll[,1]
+      lat[] <- ll[,2]
+      rm(ll); gc()
+      clim_ll <- stack(clim, lon, lat) %>%
+            writeRaster("../climate_ll.tif")
+      
+      
+      
+      ##### spatial stats #####
+      
+      # r-squared of climate variables within landscape
+      collinearity <- function(x, ...){
+            m <- matrix(x, ncol=2)
+            cor(m[,1], m[,2], use="pairwise.complete.obs")^2
+      }
+      
+      # mean climate devaitions of smaller neighborhoods within landscape
+      heterogeneity <- function(x, ...){
+            if(length(x) != 5000) return(NA) # edge of domain
+            if(all(is.na(x))) return(NA)
+            
+            # reconstitute input rasters
+            a <- raster(matrix(x[1:2500], nrow=50))
+            b <- raster(matrix(x[2501:5000], nrow=50))
+            
+            # mean difference betwean each cell and its neighbors
+            a <- focal(a, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
+            b <- focal(b, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
+            
+            # bivariate euclidean difference
+            a <- sqrt(a^2 + b^2)
+            
+            # mean across landscape
+            mean(values(a), ...)
+      }
+      
+      # mean of univariate standard deviations within landscape
+      variation <- function(x, ...){
+            m <- matrix(x, ncol=2)
+            mean(apply(m, 2, sd, ...))
+      }
+      
+      # proportion of landscape with climate data
+      coverage <- function(x, ...){
+            length(na.omit(x))/length(x)
+      }
+      
+      # spline of pairwise climate difference ~ geographic distance within landscape
+      distances <- function(x, ...){
+            n <- 21 # number of points at which to predict spline
+            mx <- .41 # max pairwise distance for this neighborhood size, within circle
+            if(length(x) != 10000) return(rep(NA, n)) # edge of domain
+            
+            m <- matrix(x, ncol=4) %>% na.omit()
+            if(nrow(m) < 2500) return(rep(NA, n))
+            
+            gd <- dist(m[,3:4])
+            cd <- dist(m[,1:2])
+            fit <- data.frame(geo_dist=gd[upper.tri(gd)],
+                              clim_dist=cd[upper.tri(cd)]) %>%
+                  na.omit() %>%
+                  filter(geo_dist <= mx) %>%
+                  mutate(gd=ntile(geo_dist, 100)) %>%
+                  group_by(gd) %>%
+                  sample_n(100) %>%
+                  gam(clim_dist ~ s(geo_dist, bs="ps"), data=.)
+            
+            pred <- data.frame(geo_dist=seq(0, mx, length.out=21))
+            y <- as.vector(predict(fit, pred))
+            if(length(y) != n) return(rep(NA, n))
+            return(y)
+      }
+      
+      
+      col <- aggregate(clim, fact=c(50, 50, 2), fun=collinearity)
+      het <- aggregate(clim, fact=c(50, 50, 2), fun=heterogeneity)
+      var <- aggregate(clim, fact=c(50, 50, 2), fun=variation)
+      cvg <- aggregate(clim, fact=c(50, 50, 2), fun=coverage)
+      dst <- agg(clim_ll, fact=c(50, 50, 4), fun=distances) # slow -- 24 hrs
+      
+      s <- stack(col, het, var, cvg)
+      writeRaster(s, "data/collinearity_heterogeneity.tif", overwrite=T)
+      writeRaster(dst, "data/distance_splines.tif", overwrite=T)
 }
-
-# mean climate devaitions of smaller neighborhoods within landscape
-heterogeneity <- function(x, ...){
-      if(length(x) != 5000) return(NA) # edge of domain
-      if(all(is.na(x))) return(NA)
-
-      # reconstitute input rasters
-      a <- raster(matrix(x[1:2500], nrow=50))
-      b <- raster(matrix(x[2501:5000], nrow=50))
-
-      # mean difference betwean each cell and its neighbors
-      a <- focal(a, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
-      b <- focal(b, matrix(1, 3, 3), function(x) mean(abs(x - x[5])))
-
-      # bivariate euclidean difference
-      a <- sqrt(a^2 + b^2)
-
-      # mean across landscape
-      mean(values(a), ...)
-}
-
-# mean of univariate standard deviations within landscape
-variation <- function(x, ...){
-      m <- matrix(x, ncol=2)
-      mean(apply(m, 2, sd, ...))
-}
-
-# proportion of landscape with climate data
-coverage <- function(x, ...){
-      length(na.omit(x))/length(x)
-}
-
-# spline of pairwise climate difference ~ geographic distance within landscape
-distances <- function(x, ...){
-      n <- 21 # number of points at which to predict spline
-      mx <- .41 # max pairwise distance for this neighborhood size, within circle
-      if(length(x) != 10000) return(rep(NA, n)) # edge of domain
-
-      m <- matrix(x, ncol=4) %>% na.omit()
-      if(nrow(m) < 2500) return(rep(NA, n))
-
-      gd <- dist(m[,3:4])
-      cd <- dist(m[,1:2])
-      fit <- data.frame(geo_dist=gd[upper.tri(gd)],
-                        clim_dist=cd[upper.tri(cd)]) %>%
-            na.omit() %>%
-            filter(geo_dist <= mx) %>%
-            mutate(gd=ntile(geo_dist, 100)) %>%
-            group_by(gd) %>%
-            sample_n(100) %>%
-            gam(clim_dist ~ s(geo_dist, bs="ps"), data=.)
-
-      pred <- data.frame(geo_dist=seq(0, mx, length.out=21))
-      y <- as.vector(predict(fit, pred))
-      if(length(y) != n) return(rep(NA, n))
-      return(y)
-}
-
-col <- aggregate(clim, fact=c(50, 50, 2), fun=collinearity)
-het <- aggregate(clim, fact=c(50, 50, 2), fun=heterogeneity)
-var <- aggregate(clim, fact=c(50, 50, 2), fun=variation)
-cvg <- aggregate(clim, fact=c(50, 50, 2), fun=coverage)
-dst <- agg(clim_ll, fact=c(50, 50, 4), fun=distances) # slow -- 24 hrs
-
-s <- stack(col, het, var, cvg)
-writeRaster(s, "data/collinearity_heterogeneity.tif", overwrite=T)
-writeRaster(dst, "data/distance_splines.tif", overwrite=T)
-
 
 
 
@@ -170,7 +179,7 @@ ls_data <- function(data, climate){
       pts$id <- extract(id, pts)
       pts <- as.data.frame(pts) %>%
             filter(id==data$id) %>%
-            rename(lsx=x, lsy=y) %>%
+            dplyr::rename(lsx=x, lsy=y) %>%
             left_join(data, .)
       return(pts)
 }
@@ -194,14 +203,10 @@ e <- ls %>%
       filter(corner) %>%
       group_by(heterogeneity, collinearity) %>%
       sample_n(1) %>%
-      ungroup() %>%
-      split(1:nrow(.)) %>%
-      map(ls_data, climate=clim) %>%
-      do.call("rbind", .) %>%
+      write_csv("figures/het_col/ls_metadata.csv") %>%
+      group_map(~ ls_data(.x, clim)) %>%
       group_by(heterogeneity, collinearity) %>%
-      mutate(#lsx=rescale(lsx),
-             #lsy=rescale(lsy),
-             t=rescale(temp),
+      mutate(t=rescale(temp),
              p=rescale(ppt),
              group=paste(collinearity, heterogeneity)) %>%
       ungroup() %>%
@@ -216,9 +221,9 @@ e <- split(e, e$group)[c(4,2,3,1)] %>%
             return(x)
       }) %>%
       do.call("rbind", .)# %>%
-      #group_by(heterogeneity, collinearity) %>%
-      #mutate(x=rescale(x), y=rescale(y)) %>%
-      #ungroup()
+#group_by(heterogeneity, collinearity) %>%
+#mutate(x=rescale(x), y=rescale(y)) %>%
+#ungroup()
 
 label_letters <- function(x){
       y <- label_both(x, multi_line=F)
