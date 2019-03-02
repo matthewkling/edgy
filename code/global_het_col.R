@@ -194,16 +194,21 @@ ls <- d %>%
              ht=rescale(het),
              pos = rescale(cl+ht),
              neg = rescale(cl-ht),
-             corner = abs(pos-.5) > .45 | abs(neg-.5) > .45) %>%
+             #corner = abs(pos-.5) > .45 | abs(neg-.5) > .45) %>%
+             corner = (col<.1 | col>.8) & (het<.03 | het>.3)) %>%
       mutate(heterogeneity=factor(heterogeneity, levels=c("low", "high")),
              collinearity=factor(collinearity, levels=c("low", "high")))
+#ggplot(ls, aes(col, het, color=corner)) + geom_point()
 
 # select some example landscapes and grab their high-res climates
+exemplar <- c(a=40289, b=81455, c=192946, d=47305) 
 e <- ls %>%
-      filter(corner) %>%
-      group_by(heterogeneity, collinearity) %>%
-      sample_n(1) %>%
+      #filter(corner) %>%
+      #group_by(heterogeneity, collinearity) %>%
+      #sample_n(1) %>%
+      filter(id %in% exemplar) %>%
       write_csv("figures/het_col/ls_metadata.csv") %>%
+      group_by(heterogeneity, collinearity) %>%
       group_map(~ ls_data(.x, clim)) %>%
       group_by(heterogeneity, collinearity) %>%
       mutate(t=rescale(temp),
@@ -358,7 +363,7 @@ global_map <- ggplot() +
 ### assemble multipanel figure ###
 
 p <- arrangeGrob(global_map, global_scatter, nrow=1, widths=c(3, 1))
-p <- arrangeGrob(p, distances, climates, maps, ncol=1, heights=c(1.5, 1.2, 1.1, 1.1))
+p <- arrangeGrob(p, distances, maps, climates, ncol=1, heights=c(1.5, 1.2, 1.1, 1.1))
 ggsave("figures/het_col/het_col.png", p, width=8, height=10)
 
 
