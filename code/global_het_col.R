@@ -6,14 +6,6 @@
 # use geosphere::distm instead of dist
 
 
-#Suggested modifications for landscape figure:
-#1. Make example landscape be more representative (rather than an extreme) so that it falls within the shaded confidence intervals; this would allow the capital letter in the panel 1 scatterplot to not only represent the region specification, but also where the example landscape is within the scatterplot region
-#2.  Change order of panels to map, geographic space, climate space, slopes between geographic distance and climate distance
-#3.  Make y-axis for the geographic-climate space plots all be 1 (should be possible if example landscape falls within CIs)
-#4. Label panels 1-3 to allow reference in main text
-#5. List percentage of global in each combination along with the example landscape in panel 2
-
-
 
 library(tidyverse)
 library(raster)
@@ -144,7 +136,7 @@ if(F){
 
 
 
-##### plot results #####
+################## plot results ####################
 
 s <- stack("data/collinearity_heterogeneity.tif")
 splines <- stack("data/distance_splines.tif")
@@ -160,9 +152,11 @@ d <- s %>%
       rasterToPoints() %>%
       as.data.frame() %>%
       na.omit() %>%
-      mutate(het=var)
+      mutate(het=var, 
+             quadrant=paste(col>mean(col), het>mean(het)))
 
 pal <- c("gray", "#00d4ff", "#ff3700", "darkorchid")
+
 
 
 ### maps and scatterplots for exemplar landscapes ###
@@ -258,6 +252,7 @@ climates <- ggplot(e, aes(temp, ppt)) +
       labs(x="temperature", y="precipitation")
 
 
+
 ### distance splines ###
 
 add_names <- function(x, nm){names(x) <- nm; return(x)}
@@ -295,9 +290,15 @@ dde_txt <- dde %>%
       ungroup() %>%
       mutate(txt=paste0(letters[1:4], "\n"))
 
+freqs <- d %>% 
+      count(quadrant) %>% 
+      mutate(percent = round(n/sum(n)*100),
+             quadrant = LETTERS[c(1,3,2,4)]) %>%
+      arrange(quadrant)
+
 lb <- function(x){
       y <- label_both(x)
-      y[[1]] <- paste0(LETTERS[1:4], "\n", y[[1]], "\n", y[[2]])
+      y[[1]] <- paste0(freqs$quadrant, "\n", y[[1]], "\n", y[[2]], "\n(", freqs$percent, "% of globe)")
       return(y[1])
 }
 
@@ -311,14 +312,16 @@ distances <- ggplot() +
       scale_fill_manual(values=pal) +
       scale_color_manual(values=pal) +
       theme_minimal() +
-      facet_wrap(heterogeneity~collinearity, labeller=lb, scales="free",
+      facet_wrap(heterogeneity~collinearity, labeller=lb, #scales="free",
                  as.table=F, nrow=1) +
       theme(legend.position="none",
             strip.text.x=element_text(face="bold")) +
       labs(x="pairwise geographic distance (degrees)",
            y="climatic difference")
 
-### global map and scatterplot ##
+
+
+### global map and scatterplot ###
 
 #d$hex <- colors2d(dplyr::select(d, col, het),
 #                  c("yellow", "red", "black", "green"))
@@ -332,7 +335,7 @@ ltrs <- expand.grid(sx=mean(d$col) + c(-1, 1) * diff(range(d$col))/15,
       left_join(d)
 
 global_scatter <- ggplot(d, aes(col, het,
-                                color=paste(col>mean(col), het>mean(het)))) +
+                                color=quadrant)) +
       geom_point(size=1) +
       #geom_vline(xintercept=mean(d$col), color="white") +
       #geom_hline(yintercept=mean(d$het), color="white") +
@@ -362,22 +365,41 @@ global_map <- ggplot() +
 
 ### assemble multipanel figure ###
 
+hts <- c(1.5, 1.2, 1.1, 1.1)
 p <- arrangeGrob(global_map, global_scatter, nrow=1, widths=c(3, 1))
-p <- arrangeGrob(p, distances, maps, climates, ncol=1, heights=c(1.5, 1.2, 1.1, 1.1))
+p <- arrangeGrob(p, distances, maps, climates, ncol=1, heights=hts)
 ggsave("figures/het_col/het_col.png", p, width=8, height=10)
 
+# modified version of ggsave
+ggs <- function (filename, plot = last_plot(), device = NULL, path = NULL, 
+          scale = 1, width = NA, height = NA, units = c("in", "cm", 
+                                                        "mm"), dpi = 300, limitsize = TRUE, ...) 
+{
+      source("https://raw.githubusercontent.com/tidyverse/ggplot2/master/R/save.r")
+      source("https://raw.githubusercontent.com/tidyverse/ggplot2/master/R/utilities.r")
+      dpi <- parse_dpi(dpi)
+      dev <- plot_dev(device, filename, dpi = dpi)
+      dim <- plot_dim(c(width, height), scale = scale, units = units, 
+                      limitsize = limitsize)
+      if (!is.null(path)) {
+            filename <- file.path(path, filename)
+      }
+      old_dev <- grDevices::dev.cur()
+      dev(filename = filename, width = dim[1], height = dim[2], 
+          ...)
+      on.exit(utils::capture.output({
+            grDevices::dev.off()
+            if (old_dev > 1) grDevices::dev.set(old_dev)
+      }))
+      grid.draw(plot)
+      grid.text(1:4, 
+                x=.02, 
+                y=c(.98, .66, .42, .20),
+                gp=gpar(fontsize=20, fontface="bold", col="black"))
+      invisible()
+}
+ggs("figures/het_col/het_col.png", p, width=8, height=10)
 
-
-
-#p <- arrangeGrob(global_map, climates, maps, distances, ncol=1, heights=c(1.5, 1, 1, 1))
-#base <- 2000/8
-#png("figures/het_col/het_col.png", width=base*8, height=base*9.5)
-#grid.draw(p)
-#print(global_scatter,
-#      vp=viewport(x = 0, y = 3/4.5,
-#                  width = unit(0.3, "npc"), height = unit(0.6/4.5*1.5, "npc"),
-#                  just = c("left", "bottom")))
-#dev.off()
 
 
 
