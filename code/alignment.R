@@ -78,10 +78,15 @@ if(F){
 
 ##### compared #####
 
+# land coverage
+land <- raster("data/collinearity_heterogeneity.tif", 4) %>%
+      reclassify(c(-1, .5, NA))
+
 # proportion of GCMs with spatial-temporal match
 m <- list.files("../climate_deltas/", full.names=T) %>%
       c("../correlations.tif") %>%
       stack() %>%
+      mask(land) %>%
       rasterToPoints() %>%
       as.data.frame() %>%
       gather(gcm, delta, -x, -y, -correlations) %>%
@@ -89,7 +94,8 @@ m <- list.files("../climate_deltas/", full.names=T) %>%
       group_by(x, y) %>%
       summarize(alignment = mean(alignment),
                 delta = mean(delta),
-                spatial = mean(correlations))
+                spatial = mean(correlations)) %>%
+      na.omit()
 
 
 p <- ggplot(m, aes(x, y, fill=alignment)) +
