@@ -16,8 +16,6 @@ library(gridExtra)
 library(ecoclim)
 library(mgcv)
 
-setwd("E:/edges/edgy")
-
 source("code/agg.r") # modified version of raster::aggregate
 
 select <- dplyr::select
@@ -180,7 +178,7 @@ ls_data <- function(data, climate){
 
 # categorize landscapes by binary het-col combo
 ls <- d %>%
-      filter(cvg == 1) %>%
+      filter(cvg > .5) %>%
       mutate(heterogeneity = ifelse(het > mean(het), "high", "low"),
              collinearity = ifelse(col > mean(col), "high", "low"),
              # flag corner cases as canditates for examples:
@@ -224,9 +222,12 @@ e <- split(e, e$group)[c(4,2,3,1)] %>%
 #mutate(x=rescale(x), y=rescale(y)) %>%
 #ungroup()
 
+roman <- c("i", "ii", "iii", "iv")
+ROMAN <- to_upper_ascii(roman)
+
 label_letters <- function(x){
       y <- label_both(x, multi_line=F)
-      y[[1]] <- letters[1:4]
+      y[[1]] <- roman #letters[1:4]
       return(y)
 }
 
@@ -288,12 +289,12 @@ dde_txt <- dde %>%
       arrange(geo) %>%
       slice(16) %>%
       ungroup() %>%
-      mutate(txt=paste0(letters[1:4], "\n"))
+      mutate(txt=paste0(roman, "\n"))
 
 freqs <- d %>% 
       count(quadrant) %>% 
       mutate(percent = round(n/sum(n)*100),
-             quadrant = LETTERS[c(1,3,2,4)]) %>%
+             quadrant = ROMAN[c(1,3,2,4)]) %>%
       arrange(quadrant)
 
 lb <- function(x){
@@ -326,9 +327,9 @@ distances <- ggplot() +
 #d$hex <- colors2d(dplyr::select(d, col, het),
 #                  c("yellow", "red", "black", "green"))
 
-ltrs <- expand.grid(sx=mean(d$col) + c(-1, 1) * diff(range(d$col))/15,
+ltrs <- expand.grid(sx=mean(d$col) + c(-5, 5) * diff(range(d$col))/15,
                     sy=mean(d$het) + c(-1, 1) * diff(range(d$het))/15) %>%
-      mutate(lab = LETTERS[1:4],
+      mutate(lab = ROMAN,
              heterogeneity=c("low", "low", "high", "high"),
              collinearity=c("low", "high", "low", "high")) %>%
       left_join(dde %>% select(-geo, -clim) %>% distinct()) %>%
@@ -339,8 +340,8 @@ global_scatter <- ggplot(d, aes(col, het,
       geom_point(size=1) +
       #geom_vline(xintercept=mean(d$col), color="white") +
       #geom_hline(yintercept=mean(d$het), color="white") +
-      geom_text(data=ltrs, aes(sx, sy, label=lab), size=5, color="black") +
-      geom_text(data=ltrs, aes(col, het, label=tolower(lab)), size=5, color="black") +
+      geom_text(data=ltrs, aes(sx, sy, label=lab), size=4, color="black") +
+      geom_text(data=ltrs, aes(col, het, label=to_lower_ascii(lab)), size=5, color="black") +
       theme_minimal() +
       scale_color_manual(values=pal) +
       #theme(text=element_text(size=25)) +
@@ -356,7 +357,7 @@ global_map <- ggplot() +
       #geom_raster(fill=d$hex) +
       geom_raster(data=d, aes(x, y, fill=paste(col>mean(col), het>mean(het)))) +
       geom_point(data=ltrs, aes(x, y)) +
-      geom_text(data=ltrs, aes(x, y, label=tolower(lab)), size=5, nudge_x=8) +
+      geom_text(data=ltrs, aes(x, y, label=to_lower_ascii(lab)), size=5, nudge_x=8) +
       scale_fill_manual(values=pal) +
       theme_void() +
       theme(legend.position="none")
@@ -367,8 +368,8 @@ global_map <- ggplot() +
 
 hts <- c(1.5, 1.2, 1.1, 1.1)
 p <- arrangeGrob(global_map, global_scatter, nrow=1, widths=c(3, 1))
-p <- arrangeGrob(p, distances, maps, climates, ncol=1, heights=hts)
-ggsave("figures/het_col/het_col.png", p, width=8, height=10)
+p <- arrangeGrob(p, distances, climates, maps, ncol=1, heights=hts)
+#ggsave("figures/het_col/het_col.png", p, width=8, height=10)
 
 # modified version of ggsave
 ggs <- function (filename, plot = last_plot(), device = NULL, path = NULL, 
@@ -392,7 +393,7 @@ ggs <- function (filename, plot = last_plot(), device = NULL, path = NULL,
             if (old_dev > 1) grDevices::dev.set(old_dev)
       }))
       grid.draw(plot)
-      grid.text(1:4, 
+      grid.text(LETTERS[1:4], 
                 x=.02, 
                 y=c(.98, .66, .42, .20),
                 gp=gpar(fontsize=20, fontface="bold", col="black"))
