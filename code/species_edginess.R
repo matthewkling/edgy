@@ -268,6 +268,20 @@ stopCluster(cl)
 
 
 
+# get geographic centroids of every species range
+centroid <- function(spp){
+      # spp <- "Quercus douglasii"
+      spf[grepl(spp, spf)] %>%
+            readOGR() %>%
+            gCentroid() %>%
+            as.data.frame() %>%
+            mutate(species=spp)
+}
+sp <- basename(dirname(spf))
+centroids <- lapply(sp, centroid)
+centroids <- do.call("rbind", centroids)
+write_csv(centroids, "data/range_centroids.csv")
+
 
 ## histogram of correlation coefficients ##
 

@@ -44,6 +44,7 @@ if(! all(sapply(species, function(spp) any(grepl(spp, done))))) stop("problemati
 
 spp_plots <- function(spp){
       #spp <- species[2]
+      #browser()
       box <- readRDS(done[grepl(spp, done)])
       
       x <- box$x
@@ -54,8 +55,7 @@ spp_plots <- function(spp){
       x$r <- scales::rescale(x$dstg, 1:0) ^ 4
       x$hex <- rgb(dplyr::select(x, r, g, b), maxColorValue=1)
       
-      x <- sample_n(x, nrow(x))
-      
+      x <- x[sample(nrow(x), nrow(x)),]
       
       sd <- fortify(box$sp)
       sdg <- fortify(box$spg)
@@ -139,6 +139,12 @@ s <- lapply(species, spp_plots)
 
 ##################### key map ########################
 
+r <- read.csv("data/stats.txt", stringsAsFactors=F) %>%
+      group_by(species) %>%
+      slice(1)
+centroids <- read_csv("data/range_centroids.csv") %>%
+      left_join(r)
+
 bbox <- function(spp){
       box <- readRDS(done[grepl(spp, done)])
       x <- box$x
@@ -156,10 +162,13 @@ lett <- k %>%
       group_by(letter) %>%
       summarize(x=min(x), y=max(y))
 
+pal <- viridis::viridis_pal()(4)[c(1, 1:4, 4)] %>% rev()
+pal <- c("orangered", "orange", "yellow", "green", "darkgreen")
 
 key <- ggplot() + 
       geom_polygon(data=world, aes(long, lat, group=group),
                    fill="gray80") +
+      geom_point(data=na.omit(centroids), aes(x, y, color=cor_pearson), size=5) +
       geom_polygon(data=k, 
                    aes(x, y, group=spp),
                    fill=NA, color="black", size=.5) +
@@ -170,32 +179,36 @@ key <- ggplot() +
                 ylim=c(0, 90)) +
       scale_y_continuous(breaks=seq(-90, 90, 15)) +
       scale_x_continuous(breaks=seq(-180, 180, 15)) +
+      scale_color_gradientn(colours=pal) +
       theme_minimal() +
       theme(axis.title=element_blank(), axis.text=element_blank(),
-            panel.grid=element_line(color="gray85", size=1))
-
+            panel.grid=element_line(color="gray85", size=1),
+            legend.position="none")
 
 
 ################## correlation histogram ###############
 
-r <- read.csv("e:/edges/edgy/data/stats.txt", stringsAsFactors=F) %>%
-      group_by(species) %>%
-      slice(1)
 rs <- r[r$species %in% species,] %>%
       ungroup() %>%
       mutate(letter=letters[1:nrow(.)])
 
+hd <- r %>% mutate(cor_pearson=plyr::round_any(cor_pearson, .05)) %>%
+      count(cor_pearson)
+      
 hst <- ggplot() + 
       geom_vline(xintercept=0, color="gray80", size=.75) +
-      geom_histogram(data=r, aes(cor_pearson), alpha=.3, bins=20) +
+      geom_bar(data=hd, aes(cor_pearson, n, fill=cor_pearson), 
+               stat="identity") +
       geom_segment(data=rs, aes(x=cor_pearson, xend=cor_pearson,
                                 y=0, yend=10)) +
       geom_text(data=rs, aes(x=cor_pearson, y=15, label=letter),
                 size=8) +
       scale_x_continuous(breaks=seq(-1, 1, .2)) +
+      scale_fill_gradientn(colours=pal) +
       theme_minimal() +
       theme(axis.title=element_text(size=20),
-            axis.text=element_text(size=20)) +
+            axis.text=element_text(size=20), 
+            legend.position="none") +
       labs(x=paste0("correlation between distances to climatic and geographic edges\n(n = ",
                     length(unique(r$species)), " tree species)"),
            y="number of species")
